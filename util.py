@@ -3,6 +3,7 @@ import nltk
 from nltk.stem import WordNetLemmatizer, SnowballStemmer
 from nltk.corpus import stopwords
 import numpy as np
+import gensim.downloader as api
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -137,6 +138,43 @@ def word_to_embed(q_pair, labels, language, threshold, max_length):
     return q1_pairs, q2_pairs, labels    
 
 
+def convert_text_to_vec(text, size, vectors_inst, aggregation):
+    vec = np.zeros(size).reshape((1, size)) # create for size of glove embedding and assign all values 0
+    count = 0
+    for word in text.split():
+        try:
+            vec += vectors_inst[word].reshape((1, size)) # update vector with new word
+            count += 1
+        except KeyError:
+            continue
+    if aggregation == 'mean':
+        if count != 0:
+            vec /= count 
+        return vec
+    elif aggregation == 'sum':
+        return vec
+
+
+def transform_data(df, max_length):
+    labels = []
+    q1_pair = []
+    q2_pair = []
+    vec = api.load("glove-wiki-gigaword-50")
+    for _, row in df.iterrows():
+        q1, l1 = text_to_wordlist(str(row['question1']), True, False)
+        q2, l2 = text_to_wordlist(str(row['question2']), True, False)
+        # print(q1, q2)
+        q11 = convert_text_to_vec(q1, max_length, vec, "mean")
+        q22 = convert_text_to_vec(q2, max_length, vec, "mean")
+        q1_pair.append(q11)
+        q2_pair.append(q22)
+        labels.append(int(row['is_duplicate']))
+
+    print ('Question Pairs: ', len(q1_pair))
+    return (np.concatenate(q1_pair, axis=0 ), np.concatenate(q2_pair, axis=0 )), labels   
+
+
+
 class data_(Dataset):
     def __init__(self, xq1, xq2, y):
         self.xq1 = xq1
@@ -158,6 +196,8 @@ def dataset_generator(X, y, batch_size, split=0.1, max_length=None):
     xq1 = torch.Tensor(xq1)
     xq2 = torch.Tensor(xq2)
     y = torch.Tensor(y)
+    # print(xq1.shape, xq2.shape, y.shape)
+    
     train_loader = DataLoader(data_(xq1[:int(l*len(xq1))], xq2[:int(l*len(xq1))], y[:int(l*len(xq1))]), 
                               shuffle=False, batch_size=batch_size, drop_last=True)
     test_loader = DataLoader(data_(xq1[int(l*len(xq1)):], xq2[int(l*len(xq1)):], y[int(l*len(xq1)):]), 
