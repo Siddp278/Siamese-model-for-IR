@@ -13,7 +13,9 @@ def train_epoch(epochs, train_loader,
     for i in range(epochs):
         temp_loss = 0
         correct_total = 0
+        batch_size = 0
         for batch_x, batch_y, y_ in train_loader:
+                batch_size = batch_x.shape[0]
                 # print(f"Iteration [{i+1}/{epochs}]  Training")
                 q1, q2, y = batch_x.cuda(), batch_y.cuda(), y_.cuda()
                 # print(q1.shape, q2.shape, y.shape)        
@@ -27,10 +29,9 @@ def train_epoch(epochs, train_loader,
                 correct = inferece(y_pred, y)
                 correct_total += correct
 
-
                 # Calculate the loss 
                 loss = loss_fn(similarity, y)
-                temp_loss += loss.item()
+                temp_loss += torch.abs(loss).item()
 
                 # Calculate gradients by performign the backward pass
                 loss.backward()
@@ -38,7 +39,7 @@ def train_epoch(epochs, train_loader,
                 # Update weights
                 optimizer.step()
         loss_history.append(temp_loss)
-        print(f"Epoch: {i}, train_loss: {temp_loss}")
+        print(f"Epoch: {i}, train_loss MAE: {temp_loss/batch_size}")
             
     # Not enabled learning rate scheduler  
 
